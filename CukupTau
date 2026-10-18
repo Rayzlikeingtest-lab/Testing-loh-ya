@@ -208,7 +208,7 @@ ESPSection:NewToggle({
 
 Notification.new({
 	Title = "Im Your's HUB",
-	Description = "Mobile Supported Loaded!",
+	Description = "Script Loaded!",
 	Duration = 5,
 	Icon = "rbxassetid://8997385628"
 })
