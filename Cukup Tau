@@ -1,0 +1,214 @@
+-- [[ Im Your's HUB - MOBILE SUPPORT & AIMBOT EDITION ]]
+local NothingLibrary = loadstring(game:HttpGetAsync('https://raw.githubusercontent.com/3345-c-a-t-s-u-s/NOTHING/main/source.lua'))();
+local Notification = NothingLibrary.Notification();
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- 1. SETUP MOBILE UI TOGGLE BUTTON
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MobileToggleGui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Parent = ScreenGui
+ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleButton.BackgroundTransparency = 0.3
+ToggleButton.Position = UDim2.new(0, 10, 0, 10) -- Pojok kiri atas
+ToggleButton.Size = UDim2.new(0, 120, 0, 40)
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Text = "Buka/Tutup Menu"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextSize = 12
+Instance.new("UICorner", ToggleButton).CornerRadius = UDim.new(0, 8)
+
+-- Fungsi untuk mensimulasikan tombol LeftControl saat tombol di layar ditekan
+ToggleButton.Activated:Connect(function()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
+end)
+
+-- 2. SETUP FOV CIRCLE
+local fovCircle = Drawing.new("Circle")
+fovCircle.Visible = false
+fovCircle.Thickness = 1.5
+fovCircle.Color = Color3.fromRGB(255, 255, 255)
+fovCircle.Filled = false
+fovCircle.Transparency = 1
+fovCircle.Radius = 150 
+
+RunService.RenderStepped:Connect(function()
+    if fovCircle.Visible then
+        -- Kunci di tengah layar (Berlaku untuk HP & PC)
+        fovCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    end
+end)
+
+-- 3. SETUP ESP (TRACER & BOX)
+local espTracerEnabled = false
+local espBoxEnabled = false
+local tracers = {}
+local boxes = {}
+
+local function createESP(player)
+    local line = Drawing.new("Line")
+    line.Visible = false; line.Color = Color3.fromRGB(255, 0, 0)
+    line.Thickness = 1.5; line.Transparency = 1
+    tracers[player] = line
+
+    local box = Drawing.new("Square")
+    box.Visible = false; box.Color = Color3.fromRGB(255, 0, 0)
+    box.Thickness = 1.5; box.Filled = false; box.Transparency = 1
+    boxes[player] = box
+end
+
+for _, p in pairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then createESP(p) end
+end
+Players.PlayerAdded:Connect(createESP)
+Players.PlayerRemoving:Connect(function(p)
+    if tracers[p] then tracers[p]:Remove(); tracers[p] = nil end
+    if boxes[p] then boxes[p]:Remove(); boxes[p] = nil end
+end)
+
+-- 4. AIMBOT LOGIC (MENGGUNAKAN FOV - TOGGLE MODE)
+local aimbotEnabled = false
+local aimbotSmoothing = 0.5
+local aimTarget = nil
+
+local function getClosestPlayerInFOV()
+    local closestPlayer = nil
+    local shortestDistance = fovCircle.Radius
+    local centerScreen = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+            local pos, onScreen = Camera:WorldToViewportPoint(p.Character.Head.Position)
+            if onScreen then
+                local dist = (Vector2.new(pos.X, pos.Y) - centerScreen).Magnitude
+                if dist < shortestDistance then
+                    closestPlayer = p
+                    shortestDistance = dist
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- 5. RENDER LOOP (MENGUPDATE SEMUA VISUAL & AIMBOT)
+RunService.RenderStepped:Connect(function()
+    -- Aimbot Execution
+    if aimbotEnabled then
+        aimTarget = getClosestPlayerInFOV()
+        if aimTarget and aimTarget.Character and aimTarget.Character:FindFirstChild("Head") then
+            local targetPos = aimTarget.Character.Head.Position
+            local camPos = Camera.CFrame.Position
+            local newCFrame = CFrame.new(camPos, targetPos)
+            Camera.CFrame = Camera.CFrame:Lerp(newCFrame, aimbotSmoothing)
+        end
+    else
+        aimTarget = nil
+    end
+
+    -- ESP Execution
+    for player, line in pairs(tracers) do
+        local box = boxes[player]
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChild("Head") and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            
+            local rootPart = player.Character.HumanoidRootPart
+            local head = player.Character.Head
+            
+            local rootPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+            local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
+            local legPos = Camera:WorldToViewportPoint(rootPart.Position - Vector3.new(0, 3, 0))
+            
+            if onScreen then
+                if espTracerEnabled then
+                    line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                    line.To = Vector2.new(rootPos.X, rootPos.Y)
+                    line.Visible = true
+                else
+                    line.Visible = false
+                end
+                
+                if espBoxEnabled then
+                    local height = math.abs(headPos.Y - legPos.Y)
+                    local width = height / 2
+                    box.Size = Vector2.new(width, height)
+                    box.Position = Vector2.new(rootPos.X - width / 2, headPos.Y)
+                    box.Visible = true
+                else
+                    box.Visible = false
+                end
+            else
+                line.Visible = false
+                box.Visible = false
+            end
+        else
+            line.Visible = false
+            box.Visible = false
+        end
+    end
+end)
+
+-- 6. SETUP UI
+local Windows = NothingLibrary.new({
+	Title = "Im Your's HUB",
+	Description = "Mobile Support Edition",
+	Keybind = Enum.KeyCode.LeftControl,
+	Logo = 'http://www.roblox.com/asset/?id=18898582662'
+})
+
+local MainTab = Windows:NewTab({ Title = "Combat & ESP", Icon = "rbxassetid://7733960981" })
+local AimSection = MainTab:NewSection({ Title = "Aimbot Settings", Position = "Left" })
+local ESPSection = MainTab:NewSection({ Title = "Visuals", Position = "Right" })
+
+AimSection:NewToggle({
+	Title = "Enable Aimbot (Auto-Target)",
+	Default = false,
+	Callback = function(state) aimbotEnabled = state end,
+})
+
+AimSection:NewToggle({
+	Title = "Show Aim FOV",
+	Default = false,
+	Callback = function(state) fovCircle.Visible = state end,
+})
+
+AimSection:NewSlider({
+	Title = "FOV Radius",
+	Min = 0, Max = 360, Default = 150,
+	Callback = function(value) fovCircle.Radius = value end,
+})
+
+AimSection:NewSlider({
+	Title = "Aimbot Smoothness",
+	Min = 1, Max = 10, Default = 5,
+	Callback = function(value) aimbotSmoothing = value / 10 end,
+})
+
+ESPSection:NewToggle({
+	Title = "ESP Box (2D)",
+	Default = false,
+	Callback = function(state) espBoxEnabled = state end,
+})
+
+ESPSection:NewToggle({
+	Title = "ESP Tracers",
+	Default = false,
+	Callback = function(state) espTracerEnabled = state end,
+})
+
+Notification.new({
+	Title = "Im Your's HUB",
+	Description = "Mobile Supported Loaded!",
+	Duration = 5,
+	Icon = "rbxassetid://8997385628"
+})
